@@ -1,3 +1,3 @@
-﻿{
-    "H3VRUtilities": "https://raw.githubusercontent.com/Frityet/H3VRUtilities/master/meatkitpkg.json"
-}
+﻿[
+    "https://raw.githubusercontent.com/Frityet/H3VRUtilities/master/meatkitpkg.json"
+]

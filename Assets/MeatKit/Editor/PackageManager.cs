@@ -47,37 +47,29 @@ namespace MeatKit
         private void OnEnable()
         {
             EditorUtility.ClearProgressBar();
-
-            using (var client = new WebClient())
+            var jsondb = String.Empty;
+            var www = new WWW(DatabaseURL);
+            while (!www.isDone)
             {
-                var jsondb = String.Empty;
-                var www = new WWW(DatabaseURL);
+                EditorUtility.DisplayProgressBar("Getting database", String.Empty, www.bytesDownloaded / 100);
+            }
+            var pkgDB = JsonConvert.DeserializeObject<Dictionary<string, string>>(www.text);
+            if (pkgDB == null)
+            {
+                EditorUtility.DisplayDialog("Error", "Could not get package database!", "Aw, damn!");
+                Close();
+                return;
+            }
+            EditorUtility.ClearProgressBar();
+            EditorUtility.DisplayProgressBar("Downloading package info files...", String.Empty, 0.0f);
+            _packages = new List<PackageManifest>();
+            for (var i = 0; i < pkgDB.Count; i++)
+            {
+                www = new WWW(pkgDB.Values.ToArray()[i]);
                 while (!www.isDone)
-                {
-                    EditorUtility.DisplayProgressBar("Getting database", String.Empty, www.bytesDownloaded / 100);
-                }
-                Debug.Log(www.text);
-                var pkgDB = JsonUtility.FromJson<Dictionary<string, string>>(www.text);
-
-                if (pkgDB == null)
-                {
-                    EditorUtility.DisplayDialog("Error", "Could not get package database!", "Aw, damn!");
-                    Close();
-                    return;
-                }
-                EditorUtility.ClearProgressBar();
-                EditorUtility.DisplayProgressBar("Downloading package info files...", String.Empty, 0.0f);
-
-                _packages = new List<PackageManifest>();
-
-                for (var i = 0; i < pkgDB.Count; i++)
-                {
-                    www = new WWW(pkgDB.Values.ToArray()[i]);
-                    while (!www.isDone)
-                        EditorUtility.DisplayProgressBar("Downloading package info files...", "Getting from URL: " + pkgDB.Values.ToArray()[i], i / pkgDB.Count);
-                    
-                    _packages.Add(JsonUtility.FromJson<PackageManifest>(www.text));
-                }
+                    EditorUtility.DisplayProgressBar("Downloading package info files...", "Getting from URL: " + pkgDB.Values.ToArray()[i], i / pkgDB.Count);
+                
+                _packages.Add(JsonConvert.DeserializeObject<PackageManifest>(www.text));
             }
         }
 
