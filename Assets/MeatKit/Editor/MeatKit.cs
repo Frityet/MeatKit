@@ -109,5 +109,16 @@ namespace MeatKit
             PlayerSettings.SetScriptingDefineSymbolsForGroup(BuildTargetGroup.Standalone, "");
             AssetDatabase.Refresh();
         }
+
+        [MenuItem("MeatKit/Package Manager", priority = 2)]
+        public static void ShowPackageManager()
+        {
+            var dir = new DirectoryInfo(Path.Combine(Application.dataPath, "MeatKit/Plugins"));
+            if (!dir.Exists)
+                dir.Create();
+            
+            PackageManager.ShowWindow();
+            
+        }
     }
 }
