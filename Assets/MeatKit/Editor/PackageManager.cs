@@ -1,12 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Net.NetworkInformation;
-using System.Net.Security;
-using System.Security.Cryptography.X509Certificates;
-using Ping = System.Net.NetworkInformation.Ping;
+using System.Text;
 using UnityEditor;
 using UnityEngine;
 using Valve.Newtonsoft.Json;
@@ -19,15 +13,15 @@ namespace MeatKit
         [Serializable]
         public struct PackageVersion
         {
-            public string[] Changelog { get; set; }
-            public string PackageURL { get; set; }
-            public Dictionary<string, string> Installation { get; set; }
+            public string[] Changelog;
+            public string PackageURL;
+            public Dictionary<string, string> Installation;
         }
 
-        public string Name { get; set; }
-        public string GUID { get; set; }
-        public string Description { get; set; }
-        public Dictionary<string, PackageVersion> Versions { get; set; }
+        public string Name;
+        public string GUID;
+        public string Description;
+        public Dictionary<string, PackageVersion> Versions;
     }
 
     public class PackageManager : EditorWindow
@@ -35,25 +29,23 @@ namespace MeatKit
         private const string DatabaseURL = "https://raw.githubusercontent.com/Frityet/MeatKit/main/MKPMDatabase.json";
         private List<PackageManifest> _packages;
 
-        private static PackageManager _window;
+        private static PackageManager _window; 
         
         public static void ShowWindow()
         {
             _window = GetWindow<PackageManager>();
-            _window.name = "Package Manager";
+            _window.titleContent = new GUIContent("Package Manager");
             _window.Show();
         }
 
         private void OnEnable()
         {
             EditorUtility.ClearProgressBar();
-            var jsondb = String.Empty;
             var www = new WWW(DatabaseURL);
-            while (!www.isDone)
-            {
-                EditorUtility.DisplayProgressBar("Getting database", String.Empty, www.bytesDownloaded / 100);
-            }
-            var pkgDB = JsonConvert.DeserializeObject<Dictionary<string, string>>(www.text);
+            while (!www.isDone) 
+                EditorUtility.DisplayProgressBar("Downloading database", String.Empty, www.progress);
+            string[] pkgDB = JsonConvert.DeserializeObject<string[]>(new ASCIIEncoding().GetString(www.bytes).Remove(0, 3));
+            
             if (pkgDB == null)
             {
                 EditorUtility.DisplayDialog("Error", "Could not get package database!", "Aw, damn!");
@@ -63,19 +55,49 @@ namespace MeatKit
             EditorUtility.ClearProgressBar();
             EditorUtility.DisplayProgressBar("Downloading package info files...", String.Empty, 0.0f);
             _packages = new List<PackageManifest>();
-            for (var i = 0; i < pkgDB.Count; i++)
+            for (var i = 0; i < pkgDB.Length; i++)
             {
-                www = new WWW(pkgDB.Values.ToArray()[i]);
+                www = new WWW(pkgDB[i]);
                 while (!www.isDone)
-                    EditorUtility.DisplayProgressBar("Downloading package info files...", "Getting from URL: " + pkgDB.Values.ToArray()[i], i / pkgDB.Count);
+                    EditorUtility.DisplayProgressBar("Downloading package info files...", "Getting from URL: " + pkgDB[i], i / pkgDB.Length);
                 
                 _packages.Add(JsonConvert.DeserializeObject<PackageManifest>(www.text));
             }
+            EditorUtility.ClearProgressBar();
         }
 
         private void OnGUI()
         {
-            
+            Rect listRect = EditorGUILayout.BeginVertical();
+            {
+                foreach (PackageManifest manifest in _packages)
+                {
+                    Rect pkgRect = EditorGUILayout.BeginHorizontal();
+                    {
+                        EditorGUILayout.LabelField(manifest.Name);
+                        EditorGUILayout.LabelField(manifest.GUID);
+                        EditorGUILayout.LabelField(manifest.Description);
+                    }
+                    EditorGUILayout.EndHorizontal();
+                }
+            }
+            EditorGUILayout.EndVertical();
+        }
+
+        private void OnDestroy()
+        {
+            EditorUtility.ClearProgressBar();
+        }
+
+        private struct GUIStyles
+        {
+            public static readonly GUIStyle Header = new GUIStyle() 
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 16,
+                fontStyle = FontStyle.Bold
+            };
+            // public static readonly GUIStyle 
         }
     }
 }
