@@ -68,20 +68,35 @@ namespace MeatKit
 
         private void OnGUI()
         {
-            Rect listRect = EditorGUILayout.BeginVertical();
+            Rect ui = EditorGUILayout.BeginHorizontal();
             {
-                foreach (PackageManifest manifest in _packages)
+                PackageManifest selectedPackage = _packages[0];
+                Rect listRect = EditorGUILayout.BeginVertical();
                 {
-                    Rect pkgRect = EditorGUILayout.BeginHorizontal();
+                    EditorGUILayout.LabelField(_packages.Count + " packages found!", new GUIStyle {alignment = TextAnchor.MiddleCenter});
+                    foreach (PackageManifest pkg in _packages)
                     {
-                        EditorGUILayout.LabelField(manifest.Name);
-                        EditorGUILayout.LabelField(manifest.GUID);
-                        EditorGUILayout.LabelField(manifest.Description);
+                        Rect pkgRect = EditorGUILayout.BeginHorizontal("Button");
+                        {
+                            if (GUI.Button(pkgRect, pkg.Name))
+                            {
+                                selectedPackage = pkg;
+                            }
+                        }
+                        EditorGUILayout.EndHorizontal();
                     }
-                    EditorGUILayout.EndHorizontal();
                 }
+                EditorGUILayout.EndVertical();
+                
+                Rect pkgInfoRect = EditorGUILayout.BeginVertical("Box");
+                {
+                    EditorGUILayout.LabelField("Name: ", selectedPackage.Name);
+                    EditorGUILayout.LabelField("GUID: ", selectedPackage.GUID);
+                    EditorGUILayout.LabelField("Description: ",selectedPackage.Description);
+                }
+                EditorGUILayout.EndVertical();
             }
-            EditorGUILayout.EndVertical();
+            EditorGUILayout.EndHorizontal();
         }
 
         private void OnDestroy()
@@ -97,6 +112,7 @@ namespace MeatKit
                 fontSize = 16,
                 fontStyle = FontStyle.Bold
             };
+            
             // public static readonly GUIStyle 
         }
     }
