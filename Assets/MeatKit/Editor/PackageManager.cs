@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Text;
+using HarmonyLib;
 using UnityEditor;
 using UnityEngine;
 using Valve.Newtonsoft.Json;
@@ -22,12 +25,24 @@ namespace MeatKit
         public string GUID;
         public string Description;
         public Dictionary<string, PackageVersion> Versions;
+
+        public FileInfo Install(string dirPath)
+        {
+            var dir = new DirectoryInfo(dirPath);
+            if (!dir.Exists)
+                throw new DirectoryNotFoundException();
+
+            return null;
+        }
     }
 
     public class PackageManager : EditorWindow
     {
-        private const string DatabaseURL = "https://raw.githubusercontent.com/Frityet/MeatKit/main/MKPMDatabase.json";
+        private const string DatabaseURL                = "https://raw.githubusercontent.com/Frityet/MeatKit/main/MKPMDatabase.json",
+                             InstalledPackagesFileName  = "installed_packages.json",
+                             PackageDirectory           = "Assets/Plugins/Packages";
         private List<PackageManifest> _packages;
+        private Dictionary<string, string> _installedPackages;
 
         private static PackageManager _window; 
         
@@ -36,6 +51,19 @@ namespace MeatKit
             _window = GetWindow<PackageManager>();
             _window.titleContent = new GUIContent("Package Manager");
             _window.Show();
+        }
+
+        private bool IsInstalled(string guid)
+        {
+            return _installedPackages.ContainsKey(guid);
+        }
+
+        private void AddInstalled(string guid, string version)
+        {
+            if (IsInstalled(guid))
+                throw new Exception("Package " + guid + " is already installed!");
+            _installedPackages.Add(guid, version);
+            File.WriteAllText(InstalledPackagesFileName, JsonConvert.SerializeObject(_installedPackages));
         }
 
         private void OnEnable()
@@ -64,21 +92,33 @@ namespace MeatKit
                 _packages.Add(JsonConvert.DeserializeObject<PackageManifest>(www.text));
             }
             EditorUtility.ClearProgressBar();
+
+            var installedPackages = new FileInfo(InstalledPackagesFileName);
+            if (!installedPackages.Exists)
+                installedPackages.CreateText();
+            _installedPackages = JsonConvert.DeserializeObject<Dictionary<string, string>>(String.Join("", File.ReadAllLines(installedPackages.FullName)));
+
+            var packageDir = new DirectoryInfo(PackageDirectory);
+            if (!packageDir.Exists)
+                packageDir.Create();
         }
 
         private void OnGUI()
         {
+            EditorGUILayout.LabelField(_packages.Count + " packages found!", new GUIStyle { alignment = TextAnchor.MiddleCenter });
             Rect ui = EditorGUILayout.BeginHorizontal();
             {
                 PackageManifest selectedPackage = _packages[0];
-                Rect listRect = EditorGUILayout.BeginVertical();
+                Rect list = EditorGUILayout.BeginVertical(new GUIStyle() { alignment = TextAnchor.MiddleLeft });
                 {
-                    EditorGUILayout.LabelField(_packages.Count + " packages found!", new GUIStyle {alignment = TextAnchor.MiddleCenter});
-                    foreach (PackageManifest pkg in _packages)
+                    foreach (PackageManifest pkg in     from pkg 
+                                                        in _packages 
+                                                        let pkgRect = EditorGUILayout.BeginHorizontal(new GUIStyle("Button") { margin = new RectOffset(10, 10, 5, 2) }) 
+                                                        select pkg)
                     {
-                        Rect pkgRect = EditorGUILayout.BeginHorizontal("Button");
+                        if (!IsInstalled(pkg.GUID))
                         {
-                            if (GUI.Button(pkgRect, pkg.Name))
+                            if (GUILayout.Button(pkg.Name))
                             {
                                 selectedPackage = pkg;
                             }
@@ -93,27 +133,29 @@ namespace MeatKit
                     EditorGUILayout.LabelField("Name: ", selectedPackage.Name);
                     EditorGUILayout.LabelField("GUID: ", selectedPackage.GUID);
                     EditorGUILayout.LabelField("Description: ",selectedPackage.Description);
+                    var i = 0; 
+                    i = EditorGUILayout.Popup(i, selectedPackage.Versions.Keys.ToArray());
+                    string ver = selectedPackage.Versions.Keys.ToArray()[i];
+                    
+                    if (GUILayout.Button("Install"))
+                    {
+                        if (!IsInstalled(selectedPackage.GUID))
+                        {
+                            selectedPackage.Install(PackageDirectory);
+                            AddInstalled(selectedPackage.GUID, ver);
+                        }
+                    }
                 }
                 EditorGUILayout.EndVertical();
             }
             EditorGUILayout.EndHorizontal();
+            
+            
         }
 
         private void OnDestroy()
         {
             EditorUtility.ClearProgressBar();
-        }
-
-        private struct GUIStyles
-        {
-            public static readonly GUIStyle Header = new GUIStyle() 
-            {
-                alignment = TextAnchor.MiddleCenter,
-                fontSize = 16,
-                fontStyle = FontStyle.Bold
-            };
-            
-            // public static readonly GUIStyle 
         }
     }
 }
