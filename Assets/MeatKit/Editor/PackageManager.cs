@@ -39,7 +39,7 @@ namespace MeatKit
     public class PackageManager : EditorWindow
     {
         private const string DatabaseURL                = "https://raw.githubusercontent.com/Frityet/MeatKit/main/MKPMDatabase.json",
-                             InstalledPackagesFileName  = "installed_packages.json",
+                             InstalledPackagesFileName  = "InstalledPackages.json",
                              PackageDirectory           = "Assets/Plugins/Packages";
         private List<PackageManifest> _packages;
         private Dictionary<string, string> _installedPackages;
@@ -95,9 +95,15 @@ namespace MeatKit
 
             var installedPackages = new FileInfo(InstalledPackagesFileName);
             if (!installedPackages.Exists)
+            {
                 installedPackages.CreateText();
-            _installedPackages = JsonConvert.DeserializeObject<Dictionary<string, string>>(String.Join("", File.ReadAllLines(installedPackages.FullName)));
-
+                _installedPackages = new Dictionary<string, string>();
+                File.WriteAllText(installedPackages.FullName, JsonConvert.SerializeObject(_installedPackages));
+            }
+            else
+            {
+                _installedPackages = JsonConvert.DeserializeObject<Dictionary<string, string>>(String.Join("", File.ReadAllLines(installedPackages.FullName)));
+            }
             var packageDir = new DirectoryInfo(PackageDirectory);
             if (!packageDir.Exists)
                 packageDir.Create();
