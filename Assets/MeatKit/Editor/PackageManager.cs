@@ -4,15 +4,22 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using HarmonyLib;
+using Ionic.Zip;
 using UnityEditor;
 using UnityEngine;
 using Valve.Newtonsoft.Json;
 
 namespace MeatKit
 {
+    /// <summary>
+    /// Class for storing the data for a package
+    /// </summary>
     [Serializable]
-    public struct PackageManifest
+    public class PackageManifest
     {
+        /// <summary>
+        /// Struct for data about a specific version of a package
+        /// </summary>
         [Serializable]
         public struct PackageVersion
         {
@@ -26,13 +33,78 @@ namespace MeatKit
         public string Description;
         public Dictionary<string, PackageVersion> Versions;
 
-        public FileInfo Install(string dirPath)
+        /// <summary>
+        /// Installs a package
+        /// </summary>
+        /// <param name="version">Version to install</param>
+        /// <param name="root">Root directory to install to</param>
+        public void Install(string version, string root)
         {
-            var dir = new DirectoryInfo(dirPath);
+            var dir = new DirectoryInfo(Path.Combine(root, GUID));
             if (!dir.Exists)
-                throw new DirectoryNotFoundException();
+                dir.Create();
 
-            return null;
+            PackageVersion pkg = Versions[version];
+
+            var www = new WWW(pkg.PackageURL);
+
+            while (!www.isDone)
+                EditorUtility.DisplayProgressBar("Installing package", "Installing package from " + pkg.PackageURL, www.progress);
+            EditorUtility.ClearProgressBar();
+
+            var archive = new FileInfo(Path.Combine(dir.FullName, "archive.zip"));
+            File.WriteAllBytes(archive.FullName, www.bytes);
+
+            foreach (KeyValuePair<string, string> instruction in pkg.Installation)
+            {
+                switch (instruction.Key)
+                {
+                    case "UnzipToDir":
+                        {
+                            using (var zip = new ZipFile(archive.FullName))
+                                zip.ExtractAll(dir.FullName);
+                            break;
+                        }
+                    
+                    
+                    case "MakeDir":
+                        {
+                            var newdir = new DirectoryInfo(Path.Combine(dir.FullName, instruction.Value));
+                            if (!newdir.Exists)
+                                newdir.Create();
+                            break;
+                        }
+                    case "DeleteDir":
+                        {
+                            var del = new DirectoryInfo(Path.Combine(dir.FullName, instruction.Value));
+                            if (del.Exists)
+                            {
+                                foreach (DirectoryInfo subdir in del.GetDirectories())
+                                {
+                                    subdir.Delete();
+                                }
+                                foreach (FileInfo file in del.GetFiles())
+                                {
+                                    file.Delete();
+                                }
+                                del.Delete();
+                            }
+                            break;
+                        }
+                }
+            }
+            
+            archive.Delete();
+            AssetDatabase.Refresh();
+            AssetDatabase.ImportAsset(dir.FullName);
+        }
+
+        public void Uninstall(string root)
+        {
+            var dir = new DirectoryInfo(Path.Combine(root, GUID));
+            if (dir.Exists)
+                dir.Delete();
+            AssetDatabase.Refresh();
         }
     }
 
@@ -55,15 +127,25 @@ namespace MeatKit
 
         private bool IsInstalled(string guid)
         {
-            return _installedPackages.ContainsKey(guid);
+            return _installedPackages != null && _installedPackages.ContainsKey(guid);
         }
 
         private void AddInstalled(string guid, string version)
         {
+            if (!IsInstalled(guid))
+            {
+                _installedPackages.Add(guid, version);
+                File.WriteAllText(InstalledPackagesFileName, JsonConvert.SerializeObject(_installedPackages));
+            }
+        }
+
+        private void RemoveInstalled(string guid)
+        {
             if (IsInstalled(guid))
-                throw new Exception("Package " + guid + " is already installed!");
-            _installedPackages.Add(guid, version);
-            File.WriteAllText(InstalledPackagesFileName, JsonConvert.SerializeObject(_installedPackages));
+            {
+                _installedPackages.Remove(guid);
+                File.WriteAllText(InstalledPackagesFileName, JsonConvert.SerializeObject(_installedPackages));
+            }
         }
 
         private void OnEnable()
@@ -96,25 +178,33 @@ namespace MeatKit
             var installedPackages = new FileInfo(InstalledPackagesFileName);
             if (!installedPackages.Exists)
             {
-                installedPackages.CreateText();
                 _installedPackages = new Dictionary<string, string>();
-                File.WriteAllText(installedPackages.FullName, JsonConvert.SerializeObject(_installedPackages));
+                using (StreamWriter stream = installedPackages.CreateText())
+                {
+                    // File.WriteAllText(installedPackages.FullName, "{}");
+                    stream.Write("{}");
+                }
             }
             else
             {
-                _installedPackages = JsonConvert.DeserializeObject<Dictionary<string, string>>(String.Join("", File.ReadAllLines(installedPackages.FullName)));
+                string lines = String.Join("", File.ReadAllLines(installedPackages.FullName));
+                _installedPackages = String.IsNullOrEmpty(lines) ? new Dictionary<string, string>() : JsonConvert.DeserializeObject<Dictionary<string, string>>(lines);
             }
             var packageDir = new DirectoryInfo(PackageDirectory);
             if (!packageDir.Exists)
                 packageDir.Create();
         }
 
+        private int _selectedPackageVersionIndex = 0;
+        private PackageManifest _selectedPackage;
         private void OnGUI()
         {
+            if (_selectedPackage == null)
+                _selectedPackage = _packages[0];
+            
             EditorGUILayout.LabelField(_packages.Count + " packages found!", new GUIStyle { alignment = TextAnchor.MiddleCenter });
             Rect ui = EditorGUILayout.BeginHorizontal();
             {
-                PackageManifest selectedPackage = _packages[0];
                 Rect list = EditorGUILayout.BeginVertical(new GUIStyle() { alignment = TextAnchor.MiddleLeft });
                 {
                     foreach (PackageManifest pkg in     from pkg 
@@ -122,13 +212,11 @@ namespace MeatKit
                                                         let pkgRect = EditorGUILayout.BeginHorizontal(new GUIStyle("Button") { margin = new RectOffset(10, 10, 5, 2) }) 
                                                         select pkg)
                     {
-                        if (!IsInstalled(pkg.GUID))
+                        if (GUILayout.Button(pkg.Name))
                         {
-                            if (GUILayout.Button(pkg.Name))
-                            {
-                                selectedPackage = pkg;
-                            }
-                        }
+                            _selectedPackageVersionIndex = 0;
+                            _selectedPackage = pkg;
+                        } 
                         EditorGUILayout.EndHorizontal();
                     }
                 }
@@ -136,27 +224,32 @@ namespace MeatKit
                 
                 Rect pkgInfoRect = EditorGUILayout.BeginVertical("Box");
                 {
-                    EditorGUILayout.LabelField("Name: ", selectedPackage.Name);
-                    EditorGUILayout.LabelField("GUID: ", selectedPackage.GUID);
-                    EditorGUILayout.LabelField("Description: ",selectedPackage.Description);
-                    var i = 0; 
-                    i = EditorGUILayout.Popup(i, selectedPackage.Versions.Keys.ToArray());
-                    string ver = selectedPackage.Versions.Keys.ToArray()[i];
+                    EditorGUILayout.LabelField("Name: ", _selectedPackage.Name);
+                    EditorGUILayout.LabelField("GUID: ", _selectedPackage.GUID);
+                    EditorGUILayout.LabelField("Description: ", _selectedPackage.Description);
+                    _selectedPackageVersionIndex = EditorGUILayout.Popup(_selectedPackageVersionIndex, _selectedPackage.Versions.Keys.ToArray());
+                    string ver = _selectedPackage.Versions.Keys.ToArray()[_selectedPackageVersionIndex];
                     
-                    if (GUILayout.Button("Install"))
+                    if (IsInstalled(_selectedPackage.GUID))
                     {
-                        if (!IsInstalled(selectedPackage.GUID))
+                        if (GUILayout.Button("Uninstall"))
                         {
-                            selectedPackage.Install(PackageDirectory);
-                            AddInstalled(selectedPackage.GUID, ver);
+                            _selectedPackage.Uninstall(PackageDirectory);
+                            RemoveInstalled(_selectedPackage.GUID);
+                        }
+                    }
+                    else
+                    {
+                        if (GUILayout.Button("Install"))
+                        {
+                            _selectedPackage.Install(ver, PackageDirectory);
+                            AddInstalled(_selectedPackage.GUID, ver);
                         }
                     }
                 }
                 EditorGUILayout.EndVertical();
             }
             EditorGUILayout.EndHorizontal();
-            
-            
         }
 
         private void OnDestroy()

@@ -9,8 +9,8 @@
             ],
             "PackageURL": "https://github.com/WFIOST/H3VRUtilities/releases/download/8.9.1/H3VRUtilities.zip",
             "Installation": {
-                "UnzipToDir": "Assets/MeatKit/Plugins/H3VRUtilities/",
-                "DeleteDir": "Assets/MeatKit/Plugins/H3VRUtilities/monomod/"
+                "UnzipToDir": "/",
+                "DeleteDir": "monomod/"
             }
         },
         "1.0.0": {
@@ -19,8 +19,8 @@
             ],
             "PackageURL": "https://github.com/WFIOST/H3VRUtilities/releases/download/8.9.1/H3VRUtilities.zip",
             "Installation": {
-                "UnzipToDir": "Assets/MeatKit/Plugins/H3VRUtilities/",
-                "DeleteDir": "Assets/MeatKit/Plugins/H3VRUtilities/monomod/"
+                "UnzipToDir": "/",
+                "DeleteDir": "monomod/"
             }
         }
     }
