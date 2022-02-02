@@ -52,43 +52,58 @@ namespace MeatKit
                 EditorUtility.DisplayProgressBar("Installing package", "Installing package from " + pkg.PackageURL, www.progress);
             EditorUtility.ClearProgressBar();
 
-            var archive = new FileInfo(Path.Combine(dir.FullName, "archive.zip"));
+            //Just in case it 
+            var archive = new FileInfo(Path.Combine(dir.FullName, GUID + ".mkpkg"));
             File.WriteAllBytes(archive.FullName, www.bytes);
 
             foreach (KeyValuePair<string, string> instruction in pkg.Installation)
             {
+                string targetPath = Path.Combine(dir.FullName, instruction.Value);
+                Debug.LogFormat("Target: {0}, Fullname: {1}, Instruction: {2}", targetPath, dir.FullName, instruction.Value);
                 switch (instruction.Key)
                 {
                     case "UnzipToDir":
                         {
+                            var targetDir = new DirectoryInfo(targetPath);
                             using (var zip = new ZipFile(archive.FullName))
-                                zip.ExtractAll(dir.FullName);
+                                zip.ExtractAll(targetDir.FullName);
+                            Debug.Log("Target dir: " + targetDir.FullName);
+                            AssetDatabase.ImportAsset(targetDir.FullName);
                             break;
                         }
-                    
                     
                     case "MakeDir":
                         {
-                            var newdir = new DirectoryInfo(Path.Combine(dir.FullName, instruction.Value));
-                            if (!newdir.Exists)
-                                newdir.Create();
+                            var targetDir = new DirectoryInfo(targetPath);
+                            if (!targetDir.Exists)
+                                targetDir.Create();
+                            AssetDatabase.ImportAsset(targetDir.FullName);
                             break;
                         }
+                    
                     case "DeleteDir":
                         {
-                            var del = new DirectoryInfo(Path.Combine(dir.FullName, instruction.Value));
-                            if (del.Exists)
+                            var targetDir = new DirectoryInfo(targetPath);
+                            if (targetDir.Exists)
                             {
-                                foreach (DirectoryInfo subdir in del.GetDirectories())
+                                foreach (DirectoryInfo subdir in targetDir.GetDirectories())
                                 {
                                     subdir.Delete();
                                 }
-                                foreach (FileInfo file in del.GetFiles())
+                                foreach (FileInfo file in targetDir.GetFiles())
                                 {
                                     file.Delete();
                                 }
-                                del.Delete();
+                                targetDir.Delete();
                             }
+                            break;
+                        }
+                    
+                    case "ImportPkg":
+                        {
+                            var targetFile = new FileInfo(targetPath);
+                            if (targetFile.Exists) 
+                                AssetDatabase.ImportPackage(targetFile.FullName, false);
                             break;
                         }
                 }
@@ -96,14 +111,16 @@ namespace MeatKit
             
             archive.Delete();
             AssetDatabase.Refresh();
-            AssetDatabase.ImportAsset(dir.FullName);
         }
 
         public void Uninstall(string root)
         {
             var dir = new DirectoryInfo(Path.Combine(root, GUID));
             if (dir.Exists)
+            {
+                File.Delete(dir.FullName + ".meta");
                 dir.Delete();
+            }
             AssetDatabase.Refresh();
         }
     }
