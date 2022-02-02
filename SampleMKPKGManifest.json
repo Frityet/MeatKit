@@ -3,7 +3,7 @@
     "GUID": "wfiost.mkpkg",
     "Description": "Sample manifest for MeatKit package manager",
     "Versions": {
-        "1.1.0": {
+        "1.1.1": {
             "Changelog": [
                 "Fixed ---"
             ],
