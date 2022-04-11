@@ -58,7 +58,7 @@ static size_t write_memory(void *contents, size_t size, size_t bytecount, void *
     return total;
 }
 
-struct Memory download_file(const char *url)
+EXPORT struct Memory download_file(const char *url)
 {
     CURL *curl = curl_easy_init();
     
@@ -160,7 +160,7 @@ EXPORT struct ThreadedTaskMemory *download_file_async(const char *url)
 
 EXPORT void free_memory(struct Memory mem)
 {
-    free(mem.ptr);
+    free(mem.data.ptr);
 }
 
 EXPORT void free_threaded_task_memory(struct ThreadedTaskMemory *task)

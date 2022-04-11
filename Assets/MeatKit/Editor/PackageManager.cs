@@ -15,7 +15,7 @@ namespace MeatKit
     //Despite what Rider says, unity is fine with unsafe because of the mcs.rsp file in the root
     public static unsafe class Downloader
     {
-        private const string DownloadFileLibrary = "libdownloadfile.dll";
+        private const string DownloadFileLibrary = "download_file";
         
         [DllImport(DownloadFileLibrary, EntryPoint = "download_file")]
         private static extern Memory DownloadFileRaw([MarshalAs(UnmanagedType.LPStr)] string url);
@@ -116,14 +116,25 @@ namespace MeatKit
         private const string DatabaseURL                = "https://raw.githubusercontent.com/Frityet/MeatKit/main/MKPMDatabase.json",
                              PackageDirectory           = "Assets/Plugins/Packages";
 
+        private static PackageManager _window;
+        
         private string[] _packages;
         public static void ShowWindow()
+        {
+            _window = GetWindow<PackageManager>();
+            _window.name = "Package Manager";
+            _window.Show();
+        }
+
+        private void OnEnable()
         {
             var request = new Downloader.DownloadRequest(DatabaseURL);
             while(!request.IsDone)
                 EditorUtility.DisplayProgressBar("Downloading database", "Downloading database from " + DatabaseURL, request.Progress);
             if (request.Data == null)
                 throw new Exception("Could not get database!");
+
+            _packages = JsonConvert.DeserializeObject<string[]>(Encoding.UTF8.GetString(request.Data));
             
             
         }
