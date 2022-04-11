@@ -158,8 +158,14 @@ EXPORT struct ThreadedTaskMemory *download_file_async(const char *url)
     return thrdmem;
 }
 
+EXPORT void free_memory(struct Memory mem)
+{
+    free(mem.ptr);
+}
+
 EXPORT void free_threaded_task_memory(struct ThreadedTaskMemory *task)
 {
     WaitForSingleObject(task->_thread_handle, INFINITE);
+    free_memory(task->result);
     free(task);
 }
