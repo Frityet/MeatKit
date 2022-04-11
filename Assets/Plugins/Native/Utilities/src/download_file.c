@@ -24,7 +24,7 @@ struct Memory {
     size_t size;
 };
 
-struct ThreadedTask_Memory {
+struct ThreadedTaskMemory {
     bool            complete;
     long            total, now;
     //_Atomic
@@ -86,7 +86,7 @@ struct Memory download_file(const char *url)
 
 struct DownloadFileAsync_Arguments {
     /*_Atomic*/ 
-    struct ThreadedTask_Memory  *thread;
+    struct ThreadedTaskMemory  *thread;
     char                        *url;
     size_t                      url_length;     
 };
@@ -138,10 +138,10 @@ static unsigned long async_download(struct DownloadFileAsync_Arguments *args)
     return true;
 } 
 
-EXPORT struct ThreadedTask_Memory *download_file_async(const char *url)
+EXPORT struct ThreadedTaskMemory *download_file_async(const char *url)
 {
     //Must be on heap because it needs ot be allocated on the other thread
-    struct ThreadedTask_Memory *thrdmem = calloc(1, sizeof(*thrdmem));
+    struct ThreadedTaskMemory *thrdmem = calloc(1, sizeof(*thrdmem));
     struct DownloadFileAsync_Arguments *args = malloc(sizeof(*args));
     args->thread = thrdmem;
 
@@ -158,7 +158,7 @@ EXPORT struct ThreadedTask_Memory *download_file_async(const char *url)
     return thrdmem;
 }
 
-EXPORT void free_threaded_task_memory(struct ThreadedTask_Memory *task)
+EXPORT void free_threaded_task_memory(struct ThreadedTaskMemory *task)
 {
     WaitForSingleObject(task->_thread_handle, INFINITE);
     free(task);
