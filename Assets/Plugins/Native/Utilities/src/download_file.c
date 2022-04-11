@@ -26,6 +26,7 @@ struct Memory {
 
 struct ThreadedTask_Memory {
     bool            complete;
+    long            total, now;
     //_Atomic
     struct Memory   result;   
 
@@ -90,9 +91,41 @@ struct DownloadFileAsync_Arguments {
     size_t                      url_length;     
 };
 
+static int update_progress(struct ThreadedTaskMemory *mem, long total, long now, long _, long __)
+{
+    mem->total = total;
+    mem->now = now;
+    return 0;
+}
+
 static unsigned long async_download(struct DownloadFileAsync_Arguments *args)
 {
-    struct Memory mem = download_file(args->url);
+    CURL *curl = curl_easy_init();
+    
+    struct Memory mem = {0};
+    //Pointer must be allocated for it to be reallocated in write_memory
+    mem.data.ptr = malloc(1);
+
+    curl_easy_setopt(curl, CURLOPT_URL,             args->url);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION,  true);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,   write_memory);
+
+    // curl_easy_setopt(curl, CURLOPT_PROGRESSFUNCTION,update_progress);
+    // curl_easy_setopt(curl, CURLOPT_PROGRESSDATA,    args->thread);  
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS,      false);
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION,update_progress);
+    curl_easy_setopt(curl, CURLOPT_XFERINFODATA,    args->thread);
+
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA,       &mem);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT,       "libcurl-agent/1.0");
+
+    CURLcode err;
+    if ((err = curl_easy_perform(curl)) != CURLE_OK) {
+        fprintf(stderr, "Could not download file at URL %s!\nReason: %s\n", args->url, curl_easy_strerror(err));
+        free(mem.data.ptr);
+        curl_free(curl);
+    }
+    curl_free(curl);
     
     args->thread->result.data.ptr = mem.data.ptr;
     args->thread->result.size = mem.size;
@@ -101,7 +134,7 @@ static unsigned long async_download(struct DownloadFileAsync_Arguments *args)
     //The memory is allocated in the download_file_async function and must be freed here
     free(args->url);
     free(args);
-
+    
     return true;
 } 
 
