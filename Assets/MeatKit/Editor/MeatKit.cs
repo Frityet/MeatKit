@@ -118,9 +118,8 @@ namespace MeatKit
             var dir = new DirectoryInfo(Path.Combine(Application.dataPath, "MeatKit/Plugins"));
             if (!dir.Exists)
                 dir.Create();
-            
+
             PackageManager.ShowWindow();
-            
         }
     }
 }
