@@ -119,7 +119,7 @@ static DWORD asyncdownload(struct AsyncDownloadRequest *request)
         request->result.data[i - 1] = memory.data[i];        
     request->result.data[memory.count] = '\0';
 
-    request->result.data = memory.data;
+    //request->result.data = memory.data;
     request->result.count = memory.count;
     request->complete = true;
 
