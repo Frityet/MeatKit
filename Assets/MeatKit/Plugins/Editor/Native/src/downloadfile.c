@@ -132,8 +132,7 @@ static DWORD asyncdownload(struct AsyncDownloadRequest *request)
 
 struct AsyncDownloadRequest *download_file_async(const char *url)
 {
-    struct AsyncDownloadRequest *request = malloc(sizeof(struct AsyncDownloadRequest));
-    request->complete = false;
+    struct AsyncDownloadRequest *request = calloc(1, sizeof(struct AsyncDownloadRequest));
 
     size_t urllen = strlen(url);
     urllen++;
