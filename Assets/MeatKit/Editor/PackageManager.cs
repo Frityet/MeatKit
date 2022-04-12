@@ -15,40 +15,40 @@ namespace MeatKit
     //Despite what Rider says, unity is fine with unsafe because of the mcs.rsp file in the root
     public static unsafe class Downloader
     {
-        private const string DownloadFileLibrary = "download_file";
+        private const string DownloadFileLibrary = "libdownloadfile";
         
         [DllImport(DownloadFileLibrary, EntryPoint = "download_file")]
         private static extern Memory DownloadFileRaw([MarshalAs(UnmanagedType.LPStr)] string url);
         [DllImport(DownloadFileLibrary, EntryPoint = "free_memory")]
         private static extern void FreeMemory(Memory mem);
-
+    
         [DllImport(DownloadFileLibrary, EntryPoint = "download_file_async")]
         private static extern ThreadedTaskMemory* DownloadFileAsync([MarshalAs(UnmanagedType.LPStr)] string url);
         [DllImport(DownloadFileLibrary, EntryPoint = "free_threaded_task_memory")]
         private static extern void FreeThreadedTaskMemory(ThreadedTaskMemory* task);
-
+    
         [StructLayout(LayoutKind.Sequential)]
         private unsafe struct Memory 
         {
-            public byte* Data;
-            public ulong Size;
+            public readonly byte* Data;
+            public readonly ulong Size;
         }
-
+    
         [StructLayout(LayoutKind.Sequential)]
         private unsafe struct ThreadedTaskMemory
         {
             //Technically the C compiler might pad some bytes,
             //which means the offset of these fields might be invalid
             //however that's a chance I am willing to take
-            public bool     IsDone;
-            public long     Total, Downloaded;
-            public Memory   Result;
+            public readonly bool    IsDone;
+            public readonly long    Total, Downloaded;
+            public readonly Memory  Result;
         }
-
+    
         public static byte[] DownloadFile(string url)
         {
             Memory mem = DownloadFileRaw(url);
-
+    
             var bytes = new byte[mem.Size];
             for (ulong i = 0; i < mem.Size; i++)
             {
@@ -57,12 +57,12 @@ namespace MeatKit
                     bytes[i] = mem.Data[i];
                 }
             }
-
+    
             FreeMemory(mem);
-
+    
             return bytes;
         }
-
+    
         public class DownloadRequest
         {
             public byte[] Data
@@ -74,14 +74,14 @@ namespace MeatKit
                             
                     Memory mem = _request->Result;
                     var bytes = new byte[mem.Size];
-
+    
                     for (ulong i = 0; i < mem.Size; i++)
                         bytes[i] = mem.Data[i];
-
+    
                     return bytes;
                 }
             }
-
+    
             public bool IsDone
             {
                 get
@@ -89,7 +89,7 @@ namespace MeatKit
                     return _request->IsDone;
                 }
             }
-
+    
             public float Progress
             {
                 get
@@ -97,7 +97,7 @@ namespace MeatKit
                     return (float)_request->Downloaded / _request->Total;
                 }
             }
-
+    
             private ThreadedTaskMemory* _request;
             public DownloadRequest(string url)
             {
@@ -125,7 +125,8 @@ namespace MeatKit
             _window.name = "Package Manager";
             _window.Show();
         }
-
+        
+        
         private void OnEnable()
         {
             var request = new Downloader.DownloadRequest(DatabaseURL);
@@ -133,10 +134,8 @@ namespace MeatKit
                 EditorUtility.DisplayProgressBar("Downloading database", "Downloading database from " + DatabaseURL, request.Progress);
             if (request.Data == null)
                 throw new Exception("Could not get database!");
-
+            
             _packages = JsonConvert.DeserializeObject<string[]>(Encoding.UTF8.GetString(request.Data));
-            
-            
         }
     }
 }

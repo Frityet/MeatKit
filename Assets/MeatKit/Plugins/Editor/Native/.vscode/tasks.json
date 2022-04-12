@@ -1,0 +1,18 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "process",
+            "label": "Build library",
+            "problemMatcher": "$gcc",
+            "command":"${workspaceRoot}/build.sh"
+        },
+        {
+            "type": "process",
+    
+            "label": "Build test",
+            "problemMatcher": "$gcc",
+            "command":""
+        }
+    ]
+}

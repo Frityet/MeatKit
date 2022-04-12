@@ -1,0 +1,12 @@
+{
+    "configurations": [
+        {
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceRoot}/test.exe",
+            "cwd": "${workspaceRoot}",
+            "name": "Launch",
+            "console": "integratedTerminal"
+        }
+    ]
+}
