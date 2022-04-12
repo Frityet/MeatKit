@@ -10,132 +10,168 @@ using UnityEditor;
 using UnityEngine;
 using Valve.Newtonsoft.Json;
 
-namespace MeatKit 
+namespace MeatKit
 {
-    //Despite what Rider says, unity is fine with unsafe because of the mcs.rsp file in the root
-    public static unsafe class Downloader
-    {
-        private const string DownloadFileLibrary = "libdownloadfile";
-        
-        [DllImport(DownloadFileLibrary, EntryPoint = "download_file")]
-        private static extern Memory DownloadFileRaw([MarshalAs(UnmanagedType.LPStr)] string url);
-        [DllImport(DownloadFileLibrary, EntryPoint = "free_memory")]
-        private static extern void FreeMemory(Memory mem);
-    
-        [DllImport(DownloadFileLibrary, EntryPoint = "download_file_async")]
-        private static extern ThreadedTaskMemory* DownloadFileAsync([MarshalAs(UnmanagedType.LPStr)] string url);
-        [DllImport(DownloadFileLibrary, EntryPoint = "free_threaded_task_memory")]
-        private static extern void FreeThreadedTaskMemory(ThreadedTaskMemory* task);
-    
-        [StructLayout(LayoutKind.Sequential)]
-        private unsafe struct Memory 
-        {
-            public readonly byte* Data;
-            public readonly ulong Size;
-        }
-    
-        [StructLayout(LayoutKind.Sequential)]
-        private unsafe struct ThreadedTaskMemory
-        {
-            //Technically the C compiler might pad some bytes,
-            //which means the offset of these fields might be invalid
-            //however that's a chance I am willing to take
-            public readonly bool    IsDone;
-            public readonly long    Total, Downloaded;
-            public readonly Memory  Result;
-        }
-    
-        public static byte[] DownloadFile(string url)
-        {
-            Memory mem = DownloadFileRaw(url);
-    
-            var bytes = new byte[mem.Size];
-            for (ulong i = 0; i < mem.Size; i++)
-            {
-                unsafe
-                {
-                    bytes[i] = mem.Data[i];
-                }
-            }
-    
-            FreeMemory(mem);
-    
-            return bytes;
-        }
-    
-        public class DownloadRequest
-        {
-            public byte[] Data
-            {
-                get
-                {
-                    if (_request->Result.Size == 0)
-                        return null;
-                            
-                    Memory mem = _request->Result;
-                    var bytes = new byte[mem.Size];
-    
-                    for (ulong i = 0; i < mem.Size; i++)
-                        bytes[i] = mem.Data[i];
-    
-                    return bytes;
-                }
-            }
-    
-            public bool IsDone
-            {
-                get
-                {
-                    return _request->IsDone;
-                }
-            }
-    
-            public float Progress
-            {
-                get
-                {
-                    return (float)_request->Downloaded / _request->Total;
-                }
-            }
-    
-            private ThreadedTaskMemory* _request;
-            public DownloadRequest(string url)
-            {
-                _request = DownloadFileAsync(url);
-            }
-            
-            ~DownloadRequest()
-            {
-                FreeThreadedTaskMemory(_request);
-            }
-        }
-    }
-    
+
     public class PackageManager : EditorWindow
     {
-        private const string DatabaseURL                = "https://raw.githubusercontent.com/Frityet/MeatKit/main/MKPMDatabase.json",
-                             PackageDirectory           = "Assets/Plugins/Packages";
+        private class InstalledPackagesScriptableObject : ScriptableObject
+        {
+            public SerializableStringDictionary InstalledPackages;
+        }
+        
+        private const string DatabaseURL = "https://raw.githubusercontent.com/Frityet/MeatKit/main/MKPMDatabase.json",
+                             PackageDirectory = "Assets/Plugins/Packages",
+                             InstalledPackagesPath = "Assets/MeatKit/InstalledPackages.asset";
 
         private static PackageManager _window;
-        
-        private string[] _packages;
+
+        private string[] _packageURLs;
+        private List<Package> _packages;
+        private InstalledPackagesScriptableObject _installedPackages;
+
+        private bool IsInstalled(string guid)
+        {
+            return _installedPackages != null && _installedPackages.InstalledPackages.dictionary.ContainsKey(guid);
+        }
+
+        private void AddInstalled(string guid, string version)
+        {
+            if (!IsInstalled(guid))
+            {
+                _installedPackages.InstalledPackages.dictionary.Add(guid, version);
+                AssetDatabase.SaveAssets();
+            }
+        }
+
+        private void RemoveInstalled(string guid)
+        {
+            if (IsInstalled(guid))
+            {
+                _installedPackages.InstalledPackages.dictionary.Remove(guid);
+                AssetDatabase.SaveAssets();
+            }
+        }
+
         public static void ShowWindow()
         {
             _window = GetWindow<PackageManager>();
             _window.name = "Package Manager";
             _window.Show();
         }
-        
-        
+
+
         private void OnEnable()
         {
-            var request = new Downloader.DownloadRequest(DatabaseURL);
-            while(!request.IsDone)
-                EditorUtility.DisplayProgressBar("Downloading database", "Downloading database from " + DatabaseURL, request.Progress);
+            var request = new DownloadRequest(DatabaseURL);
+            while (!request.IsDone)
+                EditorUtility.DisplayProgressBar("Downloading database", "Downloading database from " + DatabaseURL,
+                    request.Progress);
+            EditorUtility.ClearProgressBar();
             if (request.Data == null)
                 throw new Exception("Could not get database!");
+
+            string pkgDb = Encoding.UTF8.GetString(request.Data);
+
+            pkgDb = pkgDb.Remove(0, 1);
+            Debug.Log(pkgDb);
+
             
-            _packages = JsonConvert.DeserializeObject<string[]>(Encoding.UTF8.GetString(request.Data));
+            _packageURLs = JsonConvert.DeserializeObject<string[]>(pkgDb);
+
+            _packages = new List<Package>(_packageURLs.Length);
+            foreach (string url in _packageURLs)
+            {
+                request = new DownloadRequest(url);
+                while (!request.IsDone)
+                    EditorUtility.DisplayProgressBar("Downloading database", "Getting package info from " + url,
+                                                                                     request.Progress);
+                EditorUtility.ClearProgressBar();
+
+                string s = Encoding.UTF8.GetString(request.Data);
+                Debug.Log(s);
+                _packages.Add(JsonConvert.DeserializeObject<Package>(s));
+            }
+            
+            var obj = AssetDatabase.LoadAssetAtPath<InstalledPackagesScriptableObject>(InstalledPackagesPath);
+            if (AssetDatabase.Contains(obj) || obj == null)
+            {
+                _installedPackages = obj;
+                Debug.Log("Found asset at " + InstalledPackagesPath);
+
+            }
+            else
+            {
+                _installedPackages = CreateInstance<InstalledPackagesScriptableObject>();
+                AssetDatabase.CreateAsset(_installedPackages, InstalledPackagesPath);
+                AssetDatabase.SaveAssets();
+                Debug.Log("Created asset at " + InstalledPackagesPath);
+            }
+
+            AssetDatabase.Refresh();
+            
+        }
+
+        private Package _selectedPackage;
+        private int _selectedPackageVersionIndex;
+        private void OnGUI()
+        {
+            if (_selectedPackage == null)
+                _selectedPackage = _packages[0];
+            
+            EditorGUILayout.LabelField(_packages.Count + " packages found!", new GUIStyle { alignment = TextAnchor.MiddleCenter });
+            Rect ui = EditorGUILayout.BeginHorizontal();
+            {
+                Rect list = EditorGUILayout.BeginVertical(new GUIStyle() { alignment = TextAnchor.MiddleLeft });
+                {
+                    foreach (Package pkg in     from pkg 
+                                                        in _packages 
+                                                        let pkgRect = EditorGUILayout.BeginHorizontal(new GUIStyle("Button") { margin = new RectOffset(10, 10, 5, 2) }) 
+                                                        select pkg)
+                    {
+                        if (GUILayout.Button(pkg.Name))
+                        {
+                            _selectedPackageVersionIndex = 0;
+                            _selectedPackage = pkg;
+                        } 
+                        EditorGUILayout.EndHorizontal();
+                    }
+                }
+                EditorGUILayout.EndVertical();
+                
+                Rect pkgInfoRect = EditorGUILayout.BeginVertical("Box");
+                {
+                    EditorGUILayout.LabelField("Name: ", _selectedPackage.Name);
+                    EditorGUILayout.LabelField("GUID: ", _selectedPackage.GUID);
+                    EditorGUILayout.LabelField("Description: ", _selectedPackage.Description);
+                    _selectedPackageVersionIndex = EditorGUILayout.Popup(_selectedPackageVersionIndex, _selectedPackage.Versions.Keys.ToArray());
+                    string ver = _selectedPackage.Versions.Keys.ToArray()[_selectedPackageVersionIndex];
+                    
+                    if (IsInstalled(_selectedPackage.GUID))
+                    {
+                        if (GUILayout.Button("Uninstall"))
+                        {
+                            _selectedPackage.Uninstall(PackageDirectory);
+                            RemoveInstalled(_selectedPackage.GUID);
+                        }
+                    }
+                    else
+                    {
+                        if (GUILayout.Button("Install"))
+                        {
+                            _selectedPackage.Install(ver, PackageDirectory);
+                            AddInstalled(_selectedPackage.GUID, ver);
+                        }
+                    }
+                }
+                EditorGUILayout.EndVertical();
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private void OnDestroy()
+        {
+            EditorUtility.ClearProgressBar();
         }
     }
 }

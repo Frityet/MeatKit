@@ -84,9 +84,8 @@ static int update_progress(struct AsyncDownloadRequest *mem, long total, long no
 static DWORD asyncdownload(struct AsyncDownloadRequest *request)
 {
     CURL *curl = curl_easy_init();
-    struct Memory memory = {
-        .data = malloc(1)
-    };
+    struct Memory memory = {0};
+    memory.data = malloc(sizeof(uint8_t));
 
     curl_easy_setopt(curl, CURLOPT_URL,             request->url);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION,  true);
@@ -113,13 +112,14 @@ static DWORD asyncdownload(struct AsyncDownloadRequest *request)
     }
     curl_free(curl);
 
-    //The first 3 bytes of the returned value are gibberish
+    //The first byte of the returned value is gibberish
     //we need 1 byte for the null terminator
-    request->result.data = malloc(sizeof(uint8_t) * memory.count - 2);
-    for (size_t i = 3; i < memory.count; i++)
-        request->result.data[i - 3] = memory.data[i];        
+    request->result.data = malloc(sizeof(uint8_t) * memory.count);
+    for (size_t i = 1; i < memory.count; i++)
+        request->result.data[i - 1] = memory.data[i];        
     request->result.data[memory.count] = '\0';
 
+    request->result.data = memory.data;
     request->result.count = memory.count;
     request->complete = true;
 
@@ -139,7 +139,6 @@ struct AsyncDownloadRequest *download_file_async(const char *url)
     urllen++;
     request->url = malloc(sizeof(char) * urllen);
 
-    puts(url);
     //strcpy does not play nice at all, this is the best alternative
     memcpy_s(request->url, urllen, url, urllen);
     request->url[urllen] = '\0';
